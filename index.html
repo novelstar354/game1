@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>ソリティア</title>
+<title>ソリティア（Klondike） — アニメ付き</title>
 <style>
 :root{--bg:#0b2946;--card-bg:#ffffff;--card-back:#154e7e;--accent:#ffd54f}
 *{box-sizing:border-box}
@@ -44,16 +44,46 @@ button:active{transform:translateY(1px)}
 /* win confetti canvas */
 #confetti{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:9999}
 @media (max-width:700px){.pile{width:70px}.card{width:60px;height:86px;left:5px}.card.small{width:48px;height:68px;left:11px}.title{font-size:16px}}
+
+
+/* ==============================
+   Responsive (スマホ/PC 最適化)
+   ============================== */
+:root{
+  --card-width:80px;
+  --card-height:112px;
+}
+@media (max-width: 600px){
+  :root{
+    --card-width:52px;
+    --card-height:73px;
+  }
+  body{
+    overflow-x:hidden;
+    touch-action:manipulation;
+  }
+  #game-area{
+    transform:scale(0.9);
+    transform-origin:top center;
+  }
+}
+@media (min-width: 1200px){
+  :root{
+    --card-width:96px;
+    --card-height:134px;
+  }
+}
+
 </style>
 </head>
 <body>
 <div class="app">
   <div class="header">
-    <div class="title">ソリティア</div>
+    <div class="title">ソリティア（Klondike） — アニメ付き</div>
     <div class="controls">
       <button id="newBtn">新しいゲーム</button>
       <button id="undoBtn">元に戻す</button>
-      <button id="autoBtn">自動移動（ダブルクリックで）</button>
+      <button id="autoBtn">自動移動（ワンクリックで全自動）</button>
       <div class="counter" id="score">スコア: 0</div>
       <div class="counter" id="moves">移動: 0</div>
     </div>
@@ -265,18 +295,27 @@ function animateMoveToFoundation(cardId, suit){ const el = findCardElementById(c
   }); setTimeout(()=>{ clone.remove(); },700);
 }
 
-function autoMoveCardToFoundation(cardId){ saveState(); const found = findCardInPiles(cardId); if(!found) { history.pop(); return } const card = found.card; const suit = card.suit; if(canPlaceOnFoundation(card, foundations[suit])){ if(found.pile==='tableau') tableau[found.i].pop(); else if(found.pile==='waste') waste.pop(); foundations[suit].push(card); moves++; score+=10; if(found.pile==='tableau' && tableau[found.i].length>0 && !tableau[found.i][tableau[found.i].length-1].face){ tableau[found.i][tableau[found.i].length-1].face=true; score+=5; animateFlip(findCardElementById(tableau[found.i][tableau[found.i].length-1].id)); } render(); animateMoveToFoundation(card.id, suit); checkWin(); } else { history.pop(); }
+function autoMoveCardToFoundation(cardId){ saveState(); const found = findCardInPiles(cardId); if(!found) { history.pop(); return } const card = found.card; const suit = card.suit; if(canPlaceOnFoundation(card, foundations[suit])){ if(found.pile==='tableau') tableau[found.i].pop(); else if(found.pile==='waste') waste.pop(); foundations[suit].push(card); moves++; score+=10; if(found.pile==='tableau' && tableau[found.i].length>0 && !tableau[found.i][tableau[found.i].length-1].face){ tableau[found.i][tableau[found.i].length-1].face=true; score+=5; animateFlip(findCardElementById(tableau[found.i][tableau[found.i].length-1].id)); }
+    render(); animateMoveToFoundation(card.id, suit); checkWin(); } else { history.pop(); }
 }
 
 function checkWin(){ const total = Object.values(foundations).reduce((acc,f)=>acc+f.length,0); if(total===52){ setTimeout(()=>{ launchConfetti(); alert('おめでとう！勝ちました！') },300); } }
+
+// auto-move all possible cards to foundations (greedy)
+function autoMoveAllToFoundations(){ let moved = true; // loop until no changes
+  while(moved){ moved=false;
+    // try waste top
+    if(waste.length>0){ const c = waste[waste.length-1]; if(canPlaceOnFoundation(c, foundations[c.suit])){ autoMoveCardToFoundation(c.id); moved=true; continue; } }
+    // try tableau tops
+    for(let i=0;i<tableau.length;i++){ const pile = tableau[i]; if(pile.length===0) continue; const c = pile[pile.length-1]; if(canPlaceOnFoundation(c, foundations[c.suit])){ autoMoveCardToFoundation(c.id); moved=true; break; } }
+  }
+}
 
 // dealing animation on start
 function startGame(){ deck = shuffle(makeDeck()); tableau = [[],[],[],[],[],[],[]]; foundations = {S:[],H:[],D:[],C:[]}; waste=[];stock=[];score=0;moves=0;history=[]; // deal with animation
   // empty board first
   render();
   // sequential deal to tableau
-  let dealIndex = 0;
-  // build piles in memory then animate
   for(let i=0;i<7;i++){
     for(let j=0;j<=i;j++){
       let card = deck.pop(); card.face = false; tableau[i].push(card);
@@ -291,8 +330,6 @@ function startGame(){ deck = shuffle(makeDeck()); tableau = [[],[],[],[],[],[],[
   document.querySelectorAll('.tableau .card').forEach((c,idx)=>{ c.style.opacity=0; setTimeout(()=>{ c.style.transition='transform 300ms, opacity 300ms'; c.style.opacity=1; c.style.transform='translateY(-6px)'; setTimeout(()=>c.style.transform='',300) }, idx*20); });
 }
 
-// utility: find card element by dataset id after render
-
 // basic UI buttons
 document.getElementById('newBtn').addEventListener('click',()=>startGame());
 document.getElementById('undoBtn').addEventListener('click',()=>restoreState());
@@ -300,17 +337,40 @@ document.getElementById('undoBtn').addEventListener('click',()=>restoreState());
 // foundation drop listeners
 document.querySelectorAll('[data-foundation]').forEach(el=>{ el.addEventListener('dragover',e=>e.preventDefault()); el.addEventListener('drop',e=>{ e.preventDefault(); const id = e.dataTransfer.getData('text/plain'); handleDropOnFoundation(id, el.dataset.foundation); }); });
 
-// click-to-auto helper for mobile
+ // auto button
+document.getElementById('autoBtn').addEventListener('click',()=>{ autoMoveAllToFoundations(); });
+
+
+// click-to-auto helper for mobile (double-tap detection)
 let clickTimer = null;
 document.addEventListener('click', (e)=>{
-  const c = e.target.closest('.card'); if(!c) return; if(clickTimer && clickTimer.datasetId === c.dataset.id){ clearTimeout(clickTimer.timer); clickTimer = null; autoMoveCardToFoundation(c.dataset.id); } else { if(clickTimer) clearTimeout(clickTimer.timer); clickTimer = {datasetId:c.dataset.id, timer:setTimeout(()=>{clickTimer=null},350)}; }
+const c = e.target.closest('.card'); if(!c) return; if(clickTimer && clickTimer.datasetId === c.dataset.id){ clearTimeout(clickTimer.timer); clickTimer = null; autoMoveCardToFoundation(c.dataset.id); } else { if(clickTimer) clearTimeout(clickTimer.timer); clickTimer = {datasetId:c.dataset.id, timer:setTimeout(()=>{clickTimer=null},350)}; }
 });
 
 // confetti (simple)
-function launchConfetti(){ const w = confettiCanvas.width = window.innerWidth; const h = confettiCanvas.height = window.innerHeight; const ctx = confettiCanvas.getContext('2d'); const pieces = []; for(let i=0;i<120;i++){ pieces.push({x:Math.random()*w, y:Math.random()*-h, r:Math.random()*6+4, dx:Math.random()*6-3, dy:Math.random()*4+2, color:`hsl(${Math.random()*360},80%,60%)`}); }
-  let t=0; function frame(){ ctx.clearRect(0,0,w,h); for(const p of pieces){ p.x += p.dx; p.y += p.dy; p.dy += 0.05; ctx.fillStyle = p.color; ctx.beginPath(); ctx.ellipse(p.x,p.y,p.r,p.r*0.6,0,0,Math.PI*2); ctx.fill(); }
-    t++; if(t<200) requestAnimationFrame(frame); else ctx.clearRect(0,0,w,h);
-  } frame(); }
+function launchConfetti(){ const w = confettiCanvas.width = window.innerWidth; const h = confettiCanvas.height = window.innerHeight; const ctx = confettiCanvas.getContext('2d'); const pieces = []; const colors = ['#ffd54f','#ff6b6b','#6bcBFF','#9b59b6','#7bed9f'];
+for(let i=0;i<140;i++){ pieces.push({x:Math.random()*w, y:Math.random()*-h, r:Math.random()*10+6, dx:(Math.random()-0.5)*2, dy:Math.random()*3+2, rot:Math.random()*360, dr: (Math.random()-0.5)*0.2, color: colors[Math.floor(Math.random()*colors.length)], life: Math.random()*100+80}); }
+let t = 0;
+function frame(){ ctx.clearRect(0,0,w,h); for(let i=0;i<pieces.length;i++){ const p = pieces[i]; p.x += p.dx; p.y += p.dy; p.rot += p.dr; p.life -= 1; ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot); ctx.fillStyle = p.color; ctx.fillRect(-p.r/2, -p.r/2, p.r, p.r*0.6); ctx.restore(); }
+// remove finished
+for(let i=pieces.length-1;i>=0;i--) if(pieces[i].life<=0 || pieces[i].y>h+50) pieces.splice(i,1);
+if(pieces.length>0){ requestAnimationFrame(frame); } else { ctx.clearRect(0,0,w,h); }
+}
+frame();
+}
 
-// helpers for animations used when flipping after moves
-function findCardEle
+
+// utility: find card element by dataset id after render
+
+
+// launch initial game
+startGame();
+
+
+// resize confetti canvas on window resize
+window.addEventListener('resize',()=>{ confettiCanvas.width = window.innerWidth; confettiCanvas.height = window.innerHeight; });
+
+
+</script>
+</body>
+</html>
