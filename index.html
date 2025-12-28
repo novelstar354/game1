@@ -111,9 +111,22 @@
        nav :hover {
            opacity: 1;
        }
+  .screen{display:none;}
+.screen.active{display:block;}
+.start-btn{text-align:center;margin-top:30px;}
+  
+ 
 
 </style>
 </head>
+  <!-- スタート画面 -->
+<div id="screen-start" class="screen active">
+<h1>ソリティア</h1>
+<div class="start-btn">
+<button onclick="switchScreen('screen-select')">スタートする</button>
+</div>
+</div>
+
 <body data-theme="dark">
   <div class="app" id="app">
     <nav>
@@ -179,6 +192,18 @@
    </footer>
 
 <script>
+  let player={}, enemies=[], selectedTarget=null, currentSkill=null, comboCount=0;
+let skillCooldown=[0,0,0], itemCount=3, stage=1;
+const attrMultiplier={ fire:{fire:1,water:0.5,wind:1.5}, water:{fire:1.5,water:1,wind:0.5}, wind:{fire:0.5,water:1.5,wind:1} };
+const bgm=document.getElementById('bgm'); bgm.volume=0.2; bgm.play().catch(()=>{});
+const seAttack=document.getElementById('se-attack'), seSkill=document.getElementById('se-skill'), seWin=document.getElementById('se-win'), seLose=document.getElementById('se-lose');
+const bgFlash=document.getElementById('bg-flash');
+
+function switchScreen(screenId){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(screenId).classList.add('active');
+}
+
 (function () {
   'use strict';
 
